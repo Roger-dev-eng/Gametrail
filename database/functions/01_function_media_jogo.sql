@@ -1,3 +1,4 @@
+-- Calcula a média das notas de um jogo, arredondada para duas casas; retorna NULL se não houver avaliações.
 CREATE OR REPLACE FUNCTION fn_media_jogo(p_id_jogo INTEGER)
 RETURNS NUMERIC(4, 2)
 LANGUAGE SQL

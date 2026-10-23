@@ -1,3 +1,4 @@
+-- Cria as tabelas de jogos, jogadores, plataformas e avaliações, com suas chaves e restrições.
 CREATE TABLE IF NOT EXISTS jogos (
     id_jogo SERIAL PRIMARY KEY,
     nome VARCHAR(100) NOT NULL,

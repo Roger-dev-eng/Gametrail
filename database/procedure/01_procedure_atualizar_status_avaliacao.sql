@@ -1,3 +1,4 @@
+-- Atualiza o status de uma avaliação pelo ID; rejeita status vazio e avaliações inexistentes.
 CREATE OR REPLACE PROCEDURE pr_atualizar_status_avaliacao(
     p_id_avaliacao INTEGER,
     p_status VARCHAR(20)

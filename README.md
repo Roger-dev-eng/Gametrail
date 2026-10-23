@@ -1,10 +1,6 @@
 # Sistema Web de Gerenciamento de Jogos
 
-Aplicação web para gerenciamento e visualização analítica de jogos, jogadores, plataformas e avaliações, conectada ao PostgreSQL do Supabase. O deploy usa Cloudflare Workers com Static Assets e Hyperdrive, disponíveis no plano gratuito. O backend Java/JDBC continua disponível para execução local.
-
-O site reúne login simples por nome (sem autenticação), operações CRUD, consultas SQL, joins, agregações e dashboard analítico em uma única interface. A API de produção está em `cloudflare/`; o frontend usa as mesmas rotas `/api/` nas duas implementações.
-
-- URL após publicar: `https://jogos-dashboard.<seu-subdominio>.workers.dev`.
+Aplicação JavaScript para gerenciar jogos, jogadores, plataformas e avaliações, com CRUD, consultas SQL e dashboard analítico. O mesmo backend Cloudflare Workers é usado localmente e em produção, com PostgreSQL do Supabase via Hyperdrive.
 
 ## Conteúdo
 
@@ -15,310 +11,126 @@ O site reúne login simples por nome (sem autenticação), operações CRUD, con
 - [Modelo de dados da aplicação](#modelo-de-dados-da-aplicação)
 - [Requisitos](#requisitos)
 - [Configuração do banco](#configuração-do-banco)
-- [Como compilar e executar](#como-compilar-e-executar)
 - [Aplicação web](#aplicação-web)
-- [Supabase e deploy na Cloudflare](#supabase-e-deploy-na-cloudflare)
 - [Fluxo da aplicação](#fluxo-da-aplicação)
 - [Consultas disponíveis](#consultas-disponíveis)
 - [Views, functions e procedures](#views-functions-e-procedures)
 - [Validações implementadas](#validações-implementadas)
+- [Testes e validação](#testes-e-validação)
+- [Limites gratuitos](#limites-gratuitos)
 - [Vídeo Explicativo e Demonstrativo](#vídeo-explicativo-e-demonstrativo)
 
 ## Visão geral
 
-O sistema oferece:
-
-- login simples com identificação do usuário
-- menu principal para navegação entre módulos
-- CRUD de jogos
-- CRUD de jogadores
-- CRUD de plataformas
-- CRUD de avaliações
-- tela de consultas com listagens, filtros, joins e agregações
-- dashboard web com KPIs, filtros dinâmicos e gráficos analíticos
+O sistema reúne identificação do usuário, menu principal, cadastros, consultas e dashboard em uma única interface. As operações são realizadas no PostgreSQL por uma API JavaScript, compartilhada entre desenvolvimento local e produção.
 
 ## Stack
-- Cloudflare Workers, Static Assets e Hyperdrive (deploy)
-- Node.js 22+ e pnpm (ferramentas de deploy)
-- Java 21
-- Maven
-- Java HTTP Server
-- JDBC
-- PostgreSQL / Supabase
-- HTML, CSS e JavaScript
-- Docker
+
+- JavaScript, HTML e CSS.
+- Cloudflare Workers, Static Assets e Hyperdrive.
+- PostgreSQL / Supabase.
+- Node.js 22+ e pnpm 11.25.0 para desenvolvimento, testes e deploy.
 
 ## Estrutura do projeto
 
 ```text
-diagrama/
-  Diagrama Entidade-Relacionamento.pdf
-src/
-  MenuPrincipal.java
-  
-  app/
-    db/
-      Database.java
-    web/
-      WebServer.java
-      WebCrudService.java
-      WebQueryService.java
-    model/
-      Jogo.java
-      Jogador.java
-      Plataforma.java
-      Avaliacao.java
-    repository/
-      JogoRepository.java
-      JogadorRepository.java
-      PlataformaRepository.java
-      AvaliacaoRepository.java
-    service/
-      ConsultaResultado.java
-      ConsultaService.java
-    validation/
-      Validator.java
-      ValidationException.java
-frontend/
-  index.html
-  app.js
-  styles.css
-  overview.css
-Dockerfile                 # execução Java local opcional
-wrangler.jsonc             # deploy Cloudflare
 cloudflare/
-  worker.js                # entrada do Worker e conexão Hyperdrive
-  api.js                   # CRUD, consultas e dashboard
-  queries.json             # SQL extraído das classes DQL Java
+  worker.js          # entrada HTTP e conexão Hyperdrive
+  api.js             # CRUD, validações, consultas e dashboard
+  queries.json       # catálogo SQL usado pelo backend
+  api.test.js        # testes com PostgreSQL em memória
+frontend/            # HTML, CSS e JavaScript da interface
+database/            # SQL comentado: estrutura, operações e consultas
+diagrama/            # diagrama entidade-relacionamento original
 scripts/
-  generate-queries.js
-database/
-  ddl/
-    01_schema.sql
-  dml/
-    Insert.java
-    Update.java
-    Delete.java
-  dql/
-    jogos/
-    jogadores/
-    plataformas/
-    avaliacoes/
-  views/
-    01_view_resumo_jogos.sql
-  functions/
-    01_function_media_jogo.sql
-  procedure/
-    01_procedure_atualizar_status_avaliacao.sql
+  check-deploy.js    # bloqueia deploy com ID provisório do Hyperdrive
+wrangler.jsonc
+package.json
+pnpm-lock.yaml
+pnpm-workspace.yaml
 ```
+
+A pasta `database` contém somente SQL comentado, organizado em DDL, DML, DQL, views, functions e procedures. As antigas classes Java foram convertidas para `.sql`; a criação das tabelas está consolidada em `database/ddl/01_schema.sql`. A pasta `diagrama` permanece preservada. O catálogo usado pela API é mantido diretamente em `cloudflare/queries.json`.
+
+Os arquivos de DML e DQL são modelos de instruções parametrizadas PostgreSQL: `$1`, `$2` e assim por diante representam os valores descritos nos comentários. Para executar uma instrução no SQL Editor, substitua esses parâmetros por valores SQL apropriados; em um driver PostgreSQL, envie-os como parâmetros separados. Esses modelos não são scripts de instalação nem são executados automaticamente pela aplicação.
 
 ## Arquitetura
 
-O código está organizado em camadas e módulos com responsabilidades bem definidas. A ideia central é separar interface, regras de aplicação, validação e acesso ao banco para reduzir acoplamento e facilitar manutenção.
-
-- `app.web`: expõe o backend HTTP Java, integra o frontend e encaminha CRUDs e consultas para as camadas da aplicação.
-- `app.model`: define as entidades de domínio usadas no sistema, como `Jogo`, `Jogador`, `Plataforma` e `Avaliacao`. Essas classes representam os dados de forma tipada e ajudam a evitar manipulação solta de valores pela aplicação.
-- `app.repository`: cada repositório organiza operações de leitura e escrita para um tipo de dado específico e faz a ponte entre a aplicação e as classes SQL reutilizadas.
-- `app.service`: reúne regras mais voltadas ao comportamento da aplicação, especialmente na composição e execução das consultas avançadas.
-- `app.validation`: centraliza validações reutilizáveis de entrada, como obrigatoriedade, conversão numérica, datas e faixas permitidas.
-- `app.db`: encapsula a criação da conexão JDBC com o PostgreSQL a partir das variáveis de ambiente.
-- `ddl`: concentra a definição estrutural do banco, isto é, os elementos responsáveis pela criação das tabelas.
-- `dml`: reúne as instruções de manipulação de dados, como inserções, atualizações e exclusões.
-- `dql`: reúne as consultas SQL usadas para leitura de dados.
-- `database/views`: contém views de leitura reutilizáveis pela aplicação e pelo dashboard.
-- `database/functions`: contém functions PostgreSQL que retornam um valor e podem ser usadas em `SELECT`.
-- `database/procedure`: contém procedures PostgreSQL para operações que alteram dados e são executadas com `CALL`.
-- `frontend`: contém a interface web atual, incluindo login, menu principal, cadastros, consultas e dashboard.
-
-## Modelo de dados da aplicação
-
-As entidades centrais do sistema são:
-
-- `Jogo`: nome, ano de lançamento, desenvolvedora e gênero
-- `Jogador`: nickname, email e jogo associado
-- `Plataforma`: nome, horas jogadas, última sessão e jogador associado
-- `Avaliacao`: nota, comentário, status, data, jogador e jogo associados
-
-## Requisitos
-
-- JDK 21 ou superior
-- Maven 3.9 ou superior
-- Docker, opcional para executar a versão Java
-- Node.js 22+ e pnpm, para desenvolver e publicar a versão Cloudflare
-- um projeto PostgreSQL/Supabase
-- variáveis de ambiente configuradas para acesso ao banco
-
-O `pom.xml` está configurado com Java 21:
-
-```xml
-<maven.compiler.release>21</maven.compiler.release>
-```
-
-
-## Configuração do banco
-
-Defina as variáveis de ambiente antes da execução:
-
-```powershell
-$env:DB_URL="jdbc:postgresql://localhost:5432/seu_banco"
-$env:DB_USER="seu_usuario"
-$env:DB_PASSWORD="sua_senha"
-```
-
-A conexão JDBC é centralizada em [src/app/db/Database.java](src/app/db/Database.java).
-
-Para usar o Supabase, copie a connection string do painel `Connect`. O backend aceita uma URL única:
-
-```powershell
-$env:SUPABASE_DB_URL="postgresql://postgres.seu_projeto:SUA_SENHA@aws-0-regiao.pooler.supabase.com:6543/postgres?sslmode=require"
-```
-
-Também é possível usar separadamente `DB_URL`, `DB_USER` e `DB_PASSWORD`. Configure as variáveis na mesma sessão do terminal que iniciará o Java.
-
-## Como compilar e executar
-
-### Compilação com Maven
-
-```powershell
-mvn package -DskipTests dependency:copy-dependencies -DoutputDirectory=target/dependency
-```
-
-### Executar o site
+O frontend chama as rotas `/api/` do Worker. `cloudflare/worker.js` abre uma conexão PostgreSQL por requisição via Hyperdrive, encaminha as operações para `cloudflare/api.js` e encerra a conexão ao terminar. Static Assets serve o frontend.
 
 ## Aplicação web
 
+- CRUD de jogos, jogadores, plataformas e avaliações.
+- Consultas simples, busca por ID e nome, filtros, joins e agregações.
+- Dashboard com totais, médias, gêneros, ranking, status, notas e horas por jogador.
+- Validação de campos obrigatórios, inteiros, datas e faixas numéricas.
+- SQL parametrizado e identificação de recursos por uma lista permitida.
+- Atualização de avaliações e chamada da procedure em uma transação com rollback em caso de falha.
 
-O site reúne a navegação operacional e analítica em uma única aplicação web. Na Cloudflare, `cloudflare/worker.js` serve a API e Static Assets serve o frontend; na execução Java local, `app.web.WebServer` atende ambos.
+## Modelo de dados da aplicação
 
-### Arquivos da aplicação web
+- `Jogo`: nome, ano de lançamento, desenvolvedora e gênero.
+- `Jogador`: nickname, email e jogo associado.
+- `Plataforma`: nome, horas jogadas, última sessão e jogador associado.
+- `Avaliacao`: nota, comentário, status, data, jogador e jogo associados.
 
-- `src/app/web/WebServer.java`: servidor HTTP Java e API JDBC
-- `src/app/web/WebCrudService.java`: CRUD usando models, repositories, validações e DML
-- `src/app/web/WebQueryService.java`: consultas usando `ConsultaService` e DQL
-- `frontend/index.html`: frontend web
-- `frontend/app.js`: navegação, CRUD, consultas e dashboard
-- `frontend/styles.css`: identidade visual responsiva
+Os relacionamentos estão documentados em `diagrama/Diagrama Entidade-Relacionamento.pdf` e definidos em `database/ddl/01_schema.sql`.
 
-### Funcionalidades do site
+## Requisitos
 
-- login simples por nome
-- CRUD de jogos, jogadores, plataformas e avaliações
-- consultas simples, filtros, joins e agregações
-- KPIs com quantidade de jogos, jogadores cadastrados, média geral das notas e plataforma mais usada
-- ranking de jogos por volume de avaliações usando a view `vw_resumo_jogos`
-- média geral usando a function `fn_media_jogo`
-- atualização de status usando a procedure `pr_atualizar_status_avaliacao`
+- Node.js 22 ou superior e pnpm 11.25.0.
+- Um banco PostgreSQL/Supabase com os scripts SQL instalados.
+- Conexão de desenvolvimento configurada em `.dev.vars` para executar localmente.
+- Conta Cloudflare com Hyperdrive configurado para publicar.
 
-### Como executar localmente
+## Configuração do banco
 
-Compile o backend Java:
-
-```powershell
-mvn clean package -DskipTests dependency:copy-dependencies -DoutputDirectory=target/dependency
-```
-
-Depois execute o site:
-
-```powershell
-java -cp ".\target\classes;.\target\dependency\*" app.web.WebServer
-```
-
-### Observações importantes
-
-- o site usa o banco PostgreSQL do Supabase
-- a versão Java aceita `SUPABASE_DB_URL` ou `DB_URL`, `DB_USER` e `DB_PASSWORD`
-- a versão Java lê `PORT` e usa `8080` por padrão
-- em produção, a Cloudflare serve o frontend e executa a API JavaScript do Worker
-
-## Supabase e deploy na Cloudflare
-
-O Workers não executa a JVM nem o Dockerfile. Por isso, `cloudflare/api.js` implementa a API equivalente em JavaScript, com PostgreSQL via Hyperdrive. O banco existente, suas tabelas, view, function e procedure são preservados. Não é necessário migrar dados para D1.
-
-### Publicar
-
-1. Mantenha a conta Cloudflare no **Workers Free** e o projeto Supabase no plano **Free**. Não ative Workers Paid nem complementos pagos.
-2. No Supabase, execute os scripts da seção [Views, functions e procedures](#views-functions-e-procedures), caso ainda não estejam instalados.
-3. No painel Cloudflare, crie uma configuração **Hyperdrive** para o PostgreSQL existente. Informe host, porta, banco, usuário e senha pelos campos protegidos do painel. Use a conexão direta suportada pelo provedor ou o pooler em modo **Session** do Supabase; habilite TLS na conexão de origem. **Desative o query cache**: o CRUD precisa ler imediatamente as alterações realizadas.
-4. Copie o ID dessa configuração para `hyperdrive[0].id` em `wrangler.jsonc`, substituindo os zeros. O ID não é segredo; a senha fica no Hyperdrive, nunca no frontend nem no Git.
-5. Instale as dependências e autentique o Wrangler:
-
-```powershell
-pnpm install --frozen-lockfile
-pnpm exec wrangler login
-```
-
-6. Valide e publique:
-
-```powershell
-pnpm test
-pnpm check
-pnpm deploy
-```
-
-O comando informa a URL `workers.dev`, com HTTPS e sem necessidade de comprar domínio. Para deploy pelo Git, conecte o repositório em **Workers & Pages > Create > Import a repository**, use a raiz do projeto, `pnpm install --frozen-lockfile` para instalar e `pnpm deploy` para publicar. Configure o Hyperdrive antes do primeiro deploy. A configuração do Render foi removida.
-
-### Desenvolver o Worker localmente
-
-Crie `.dev.vars` (ignorado pelo Git) com a conexão de desenvolvimento, sem o prefixo JDBC:
-
-```dotenv
-CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE="postgresql://usuario:senha@host:5432/postgres?sslmode=require"
-```
-
-Execute `pnpm dev` e abra o endereço exibido pelo Wrangler. Essa variável é usada somente na emulação local; a produção usa o binding Hyperdrive. Para atualizar o catálogo após alterar o SQL DQL Java, execute `pnpm generate:queries` e versione `cloudflare/queries.json`.
-
-### Limites gratuitos
-
-- [Workers Free](https://developers.cloudflare.com/workers/platform/limits/): 100 mil requisições dinâmicas por dia e 10 ms de CPU por execução. Tempo aguardando o banco não conta como CPU.
-- [Static Assets](https://developers.cloudflare.com/workers/platform/pricing/): requisições de arquivos estáticos gratuitas e ilimitadas; apenas `/api/*` passa primeiro pelo Worker.
-- [Hyperdrive Free](https://developers.cloudflare.com/hyperdrive/platform/pricing/): 100 mil instruções SQL por dia. O dashboard executa nove consultas por abertura; transações também consomem a cota.
-- O Supabase tem cotas e regras próprias do plano Free. O banco continua hospedado nele.
-
-No Workers Free, ultrapassar a cota causa falha nas operações, sem cobrança automática por excedentes. Não faça upgrade para manter o requisito de gratuidade. Os arquivos do projeto não alteram o plano de cobrança da conta. A publicação precisa ser feita em uma conta configurada no Free.
-
-## Fluxo da aplicação
-
-1. O usuário acessa a tela de login.
-
-2. O menu principal libera acesso aos módulos.
-
-3. O botão `Dashboard` também permite abrir a visualização web analítica do sistema.
-
-4. Cada tela operacional realiza consultas e operações CRUD no banco.
-
-5. A opção `Consultas` permite executar consultas simples e avançadas.
-
-
-## Consultas disponíveis
-
-Na página `Consultas`, o usuário pode alternar entre quatro modos:
-
-- `Simples`: listagem geral e busca por ID
-- `Filtros`: filtros por campos específicos
-- `Joins`: cruzamento de dados entre tabelas relacionadas
-- `Agregacoes`: totais, médias e outras métricas
-
-Na versão Java, as consultas são encaminhadas por `WebQueryService` para `ConsultaService`, que utiliza as classes DQL de `database/dql`. No Worker, `cloudflare/api.js` usa o SQL equivalente de `cloudflare/queries.json`, gerado dessas mesmas classes.
-
-## Views, functions e procedures
-
-Os scripts ficam separados por responsabilidade e devem ser executados nesta ordem:
+Use um projeto PostgreSQL/Supabase. Para uma instalação nova, execute os scripts nesta ordem no SQL Editor do Supabase ou pelo `psql`:
 
 1. `database/ddl/01_schema.sql`
 2. `database/views/01_view_resumo_jogos.sql`
 3. `database/functions/01_function_media_jogo.sql`
 4. `database/procedure/01_procedure_atualizar_status_avaliacao.sql`
 
-Com o PostgreSQL configurado, eles podem ser aplicados pelo `psql` na ordem acima. Ajuste o banco e o host conforme o seu ambiente:
+O banco existente e seus dados podem continuar sendo usados. O dashboard usa `vw_resumo_jogos` e `fn_media_jogo`; a atualização de uma avaliação chama `pr_atualizar_status_avaliacao`.
+
+## Testes e validação
 
 ```powershell
-psql -h localhost -U $env:DB_USER -d seu_banco -f .\database\ddl\01_schema.sql
-psql -h localhost -U $env:DB_USER -d seu_banco -f .\database\views\01_view_resumo_jogos.sql
-psql -h localhost -U $env:DB_USER -d seu_banco -f .\database\functions\01_function_media_jogo.sql
-psql -h localhost -U $env:DB_USER -d seu_banco -f .\database\procedure\01_procedure_atualizar_status_avaliacao.sql
+pnpm test
+pnpm check
 ```
 
-Exemplos de uso após a instalação:
+Os testes executam os scripts SQL do projeto em PostgreSQL em memória com PGlite e verificam CRUD, todas as opções de consulta do frontend, dashboard, validações, vínculos e rollback.
+
+`pnpm check` monta o pacote com `wrangler deploy --dry-run`, sem publicar.
+
+## Fluxo da aplicação
+
+1. O usuário informa seu nome na tela de login.
+2. O menu principal permite acessar cadastros, consultas e dashboard.
+3. Nos cadastros, o usuário lista, cria, edita e exclui registros.
+4. Na tela de consultas, escolhe a tabela, o modo, a consulta e o parâmetro quando necessário.
+5. O dashboard apresenta os indicadores e gráficos calculados a partir dos dados do banco.
+
+## Consultas disponíveis
+
+As consultas são organizadas por jogos, jogadores, plataformas e avaliações, com quatro modos:
+
+- `Simples`: listagem geral e busca por ID ou nome; nas avaliações, a busca textual usa o comentário.
+- `Filtros`: gênero, ano, nickname, nome de plataforma, nota ou status, conforme a tabela.
+- `Joins`: cruzamento entre jogos, jogadores, plataformas e avaliações.
+- `Agregações`: totais, médias, agrupamentos, distribuição de notas e avaliações recentes.
+
+O Worker seleciona as consultas em `cloudflare/queries.json`. Os exemplos comentados ficam em `database/dql/`.
+
+## Views, functions e procedures
+
+- `database/views/01_view_resumo_jogos.sql`: cria a view `vw_resumo_jogos`, com quantidade de avaliações e média das notas por jogo.
+- `database/functions/01_function_media_jogo.sql`: cria a function `fn_media_jogo`, que calcula a média das notas de um jogo.
+- `database/procedure/01_procedure_atualizar_status_avaliacao.sql`: cria a procedure `pr_atualizar_status_avaliacao`, que atualiza o status pelo ID da avaliação.
+
+Execute esses scripts após a criação das tabelas, seguindo a ordem da seção [Configuração do banco](#configuração-do-banco).
 
 ```sql
 SELECT * FROM vw_resumo_jogos ORDER BY media_nota DESC;
@@ -326,18 +138,20 @@ SELECT fn_media_jogo(1);
 CALL pr_atualizar_status_avaliacao(1, 'Aprovada');
 ```
 
-As duas APIs usam a view e a function no dashboard. Ao atualizar uma avaliação, a procedure é chamada pelo `WebCrudService` na versão Java e por `cloudflare/api.js` no Worker (em uma transação com rollback em caso de falha).
-
 ## Validações implementadas
 
-O projeto possui validações reutilizáveis para:
+As validações estão centralizadas em `cloudflare/api.js` e incluem:
 
-- campos obrigatórios
-- conversão de número inteiro
-- conversão de data no formato `yyyy-MM-dd`
-- validação de faixa numérica
+- Campos obrigatórios e remoção de espaços nas extremidades dos textos.
+- Números inteiros e limites permitidos.
+- Notas entre 0 e 10.
+- Datas válidas no formato `yyyy-MM-dd`.
+- IDs, recursos e consultas permitidos pela API.
 
-Essas regras estão centralizadas em `app.validation.Validator`.
+O PostgreSQL também aplica as restrições do esquema, como chaves estrangeiras e email único. O Worker trata os erros de vínculos e duplicidade para informar o usuário.
 
 ## Vídeo Explicativo e Demonstrativo
+
+O vídeo registra a demonstração original do projeto:
+
 https://drive.google.com/file/d/1zP7U1b6AGS0YlKtMr7ON4dltovEF0fXE/view?usp=sharing

@@ -1,3 +1,4 @@
+-- Resume cada jogo com sua quantidade de avaliações e média das notas, incluindo jogos sem avaliações.
 CREATE OR REPLACE VIEW vw_resumo_jogos AS
 SELECT
     j.id_jogo,

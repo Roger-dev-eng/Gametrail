@@ -27,7 +27,7 @@ export function validateData(name, input) {
   const data = {};
   for (const field of resources[name].fields) {
     const value = input[field];
-    if (field === 'ultima_sessao') data[field] = null; // Mesmo comportamento do Java.
+    if (field === 'ultima_sessao') data[field] = null;
     else if (field === 'comentario') data[field] = value == null ? null : String(value).trim() || null;
     else if (['ano_lancamento', 'horas_jogadas', 'nota', 'fk_jogo', 'fk_jogador'].includes(field)) {
       data[field] = integer(value, field, 0, field === 'nota' ? 10 : 2147483647);
