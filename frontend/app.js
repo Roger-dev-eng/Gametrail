@@ -17,7 +17,7 @@ async function api(path, options) {
     try {
       response = await fetch(`/api/${path}`, options || {});
     } catch {
-      throw new Error("O backend Java não está respondendo. Inicie o WebServer e tente novamente.");
+      throw new Error("O servidor não está respondendo. Verifique sua conexão e tente novamente.");
     }
     const raw = await response.text();
     let data;

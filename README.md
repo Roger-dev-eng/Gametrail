@@ -1,10 +1,10 @@
 # Sistema Web de Gerenciamento de Jogos
 
-Aplicação web em Java com frontend HTML, CSS e JavaScript para gerenciamento e visualização analítica de jogos, jogadores, plataformas e avaliações, conectada ao PostgreSQL do Supabase.
+Aplicação web para gerenciamento e visualização analítica de jogos, jogadores, plataformas e avaliações, conectada ao PostgreSQL do Supabase. O deploy usa Cloudflare Workers com Static Assets e Hyperdrive, disponíveis no plano gratuito. O backend Java/JDBC continua disponível para execução local.
 
-O site reúne login simples, operações CRUD, consultas SQL, joins, agregações e dashboard analítico em uma única interface. O código Java Swing e o dashboard Streamlit permanecem no repositório como implementações legadas, mas não são necessários para executar o site atual.
+O site reúne login simples por nome (sem autenticação), operações CRUD, consultas SQL, joins, agregações e dashboard analítico em uma única interface. A API de produção está em `cloudflare/`; o frontend usa as mesmas rotas `/api/` nas duas implementações.
 
-- url demo: https://jogos-dashboard.onrender.com
+- URL após publicar: `https://jogos-dashboard.<seu-subdominio>.workers.dev`.
 
 ## Conteúdo
 
@@ -17,7 +17,7 @@ O site reúne login simples, operações CRUD, consultas SQL, joins, agregaçõe
 - [Configuração do banco](#configuração-do-banco)
 - [Como compilar e executar](#como-compilar-e-executar)
 - [Aplicação web](#aplicação-web)
-- [Supabase e deploy no Render](#supabase-e-deploy-no-render)
+- [Supabase e deploy na Cloudflare](#supabase-e-deploy-na-cloudflare)
 - [Fluxo da aplicação](#fluxo-da-aplicação)
 - [Consultas disponíveis](#consultas-disponíveis)
 - [Views, functions e procedures](#views-functions-e-procedures)
@@ -38,6 +38,8 @@ O sistema oferece:
 - dashboard web com KPIs, filtros dinâmicos e gráficos analíticos
 
 ## Stack
+- Cloudflare Workers, Static Assets e Hyperdrive (deploy)
+- Node.js 22+ e pnpm (ferramentas de deploy)
 - Java 21
 - Maven
 - Java HTTP Server
@@ -82,8 +84,14 @@ frontend/
   app.js
   styles.css
   overview.css
-Dockerfile
-render.yaml
+Dockerfile                 # execução Java local opcional
+wrangler.jsonc             # deploy Cloudflare
+cloudflare/
+  worker.js                # entrada do Worker e conexão Hyperdrive
+  api.js                   # CRUD, consultas e dashboard
+  queries.json             # SQL extraído das classes DQL Java
+scripts/
+  generate-queries.js
 database/
   ddl/
     01_schema.sql
@@ -135,7 +143,8 @@ As entidades centrais do sistema são:
 
 - JDK 21 ou superior
 - Maven 3.9 ou superior
-- Docker, para reproduzir o deploy localmente
+- Docker, opcional para executar a versão Java
+- Node.js 22+ e pnpm, para desenvolver e publicar a versão Cloudflare
 - um projeto PostgreSQL/Supabase
 - variáveis de ambiente configuradas para acesso ao banco
 
@@ -179,7 +188,7 @@ mvn package -DskipTests dependency:copy-dependencies -DoutputDirectory=target/de
 ## Aplicação web
 
 
-O site é servido por um backend Java em `app.web.WebServer` e reúne a navegação operacional e analítica em uma única aplicação web.
+O site reúne a navegação operacional e analítica em uma única aplicação web. Na Cloudflare, `cloudflare/worker.js` serve a API e Static Assets serve o frontend; na execução Java local, `app.web.WebServer` atende ambos.
 
 ### Arquivos da aplicação web
 
@@ -217,21 +226,55 @@ java -cp ".\target\classes;.\target\dependency\*" app.web.WebServer
 ### Observações importantes
 
 - o site usa o banco PostgreSQL do Supabase
-- ele usa `SUPABASE_DB_URL` no Render, ou `DB_URL`, `DB_USER` e `DB_PASSWORD` para compatibilidade local
-- a porta do servidor é lida da variável `PORT`, fornecida pelo Render
-- o frontend é servido pelo próprio backend Java
+- a versão Java aceita `SUPABASE_DB_URL` ou `DB_URL`, `DB_USER` e `DB_PASSWORD`
+- a versão Java lê `PORT` e usa `8080` por padrão
+- em produção, a Cloudflare serve o frontend e executa a API JavaScript do Worker
 
-## Supabase e deploy no Render
+## Supabase e deploy na Cloudflare
 
-O arquivo `render.yaml` configura o deploy do site Java como um Web Service. Para publicar:
+O Workers não executa a JVM nem o Dockerfile. Por isso, `cloudflare/api.js` implementa a API equivalente em JavaScript, com PostgreSQL via Hyperdrive. O banco existente, suas tabelas, view, function e procedure são preservados. Não é necessário migrar dados para D1.
 
-1. Faça o push do projeto para um repositório GitHub.
-2. No Render, escolha `New > Blueprint` e selecione o repositório.
-3. Confirme o serviço `jogos-dashboard` criado pelo `render.yaml`.
-4. No painel do serviço, informe `SUPABASE_DB_URL` usando a connection string do Supabase com `sslmode=require`.
-5. Execute os scripts no SQL Editor do Supabase, seguindo a ordem indicada na seção [Views, functions e procedures](#views-functions-e-procedures).
+### Publicar
 
-O Render fornece automaticamente a variável `PORT`; o comando de inicialização do Docker já usa essa porta. O health check usa `/`.
+1. Mantenha a conta Cloudflare no **Workers Free** e o projeto Supabase no plano **Free**. Não ative Workers Paid nem complementos pagos.
+2. No Supabase, execute os scripts da seção [Views, functions e procedures](#views-functions-e-procedures), caso ainda não estejam instalados.
+3. No painel Cloudflare, crie uma configuração **Hyperdrive** para o PostgreSQL existente. Informe host, porta, banco, usuário e senha pelos campos protegidos do painel. Use a conexão direta suportada pelo provedor ou o pooler em modo **Session** do Supabase; habilite TLS na conexão de origem. **Desative o query cache**: o CRUD precisa ler imediatamente as alterações realizadas.
+4. Copie o ID dessa configuração para `hyperdrive[0].id` em `wrangler.jsonc`, substituindo os zeros. O ID não é segredo; a senha fica no Hyperdrive, nunca no frontend nem no Git.
+5. Instale as dependências e autentique o Wrangler:
+
+```powershell
+pnpm install --frozen-lockfile
+pnpm exec wrangler login
+```
+
+6. Valide e publique:
+
+```powershell
+pnpm test
+pnpm check
+pnpm deploy
+```
+
+O comando informa a URL `workers.dev`, com HTTPS e sem necessidade de comprar domínio. Para deploy pelo Git, conecte o repositório em **Workers & Pages > Create > Import a repository**, use a raiz do projeto, `pnpm install --frozen-lockfile` para instalar e `pnpm deploy` para publicar. Configure o Hyperdrive antes do primeiro deploy. A configuração do Render foi removida.
+
+### Desenvolver o Worker localmente
+
+Crie `.dev.vars` (ignorado pelo Git) com a conexão de desenvolvimento, sem o prefixo JDBC:
+
+```dotenv
+CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE="postgresql://usuario:senha@host:5432/postgres?sslmode=require"
+```
+
+Execute `pnpm dev` e abra o endereço exibido pelo Wrangler. Essa variável é usada somente na emulação local; a produção usa o binding Hyperdrive. Para atualizar o catálogo após alterar o SQL DQL Java, execute `pnpm generate:queries` e versione `cloudflare/queries.json`.
+
+### Limites gratuitos
+
+- [Workers Free](https://developers.cloudflare.com/workers/platform/limits/): 100 mil requisições dinâmicas por dia e 10 ms de CPU por execução. Tempo aguardando o banco não conta como CPU.
+- [Static Assets](https://developers.cloudflare.com/workers/platform/pricing/): requisições de arquivos estáticos gratuitas e ilimitadas; apenas `/api/*` passa primeiro pelo Worker.
+- [Hyperdrive Free](https://developers.cloudflare.com/hyperdrive/platform/pricing/): 100 mil instruções SQL por dia. O dashboard executa nove consultas por abertura; transações também consomem a cota.
+- O Supabase tem cotas e regras próprias do plano Free. O banco continua hospedado nele.
+
+No Workers Free, ultrapassar a cota causa falha nas operações, sem cobrança automática por excedentes. Não faça upgrade para manter o requisito de gratuidade. Os arquivos do projeto não alteram o plano de cobrança da conta. A publicação precisa ser feita em uma conta configurada no Free.
 
 ## Fluxo da aplicação
 
@@ -255,7 +298,7 @@ Na página `Consultas`, o usuário pode alternar entre quatro modos:
 - `Joins`: cruzamento de dados entre tabelas relacionadas
 - `Agregacoes`: totais, médias e outras métricas
 
-As consultas são encaminhadas por `WebQueryService` para `ConsultaService`, que utiliza as classes DQL de `database/dql`.
+Na versão Java, as consultas são encaminhadas por `WebQueryService` para `ConsultaService`, que utiliza as classes DQL de `database/dql`. No Worker, `cloudflare/api.js` usa o SQL equivalente de `cloudflare/queries.json`, gerado dessas mesmas classes.
 
 ## Views, functions e procedures
 
@@ -283,7 +326,7 @@ SELECT fn_media_jogo(1);
 CALL pr_atualizar_status_avaliacao(1, 'Aprovada');
 ```
 
-O dashboard usa a view e a function diretamente no backend Java. A procedure é chamada pelo `WebCrudService` quando o status de uma avaliação é atualizado.
+As duas APIs usam a view e a function no dashboard. Ao atualizar uma avaliação, a procedure é chamada pelo `WebCrudService` na versão Java e por `cloudflare/api.js` no Worker (em uma transação com rollback em caso de falha).
 
 ## Validações implementadas
 

@@ -1,0 +1,341 @@
+{
+  "jogos.Selects.listarTodos": {
+    "sql": "SELECT * FROM jogos",
+    "fields": [
+      "id_jogo",
+      "nome",
+      "ano_lancamento",
+      "desenvolvedora",
+      "genero"
+    ]
+  },
+  "jogos.Selects.buscarPorId": {
+    "sql": "SELECT * FROM jogos WHERE id_jogo = $1",
+    "fields": [
+      "id_jogo",
+      "nome",
+      "ano_lancamento",
+      "desenvolvedora",
+      "genero"
+    ]
+  },
+  "jogos.Selects.filtrarPorGenero": {
+    "sql": "SELECT * FROM jogos WHERE genero = $1",
+    "fields": [
+      "id_jogo",
+      "nome",
+      "ano_lancamento",
+      "desenvolvedora",
+      "genero"
+    ]
+  },
+  "jogos.Selects.filtrarPorAno": {
+    "sql": "SELECT * FROM jogos WHERE ano_lancamento = $1",
+    "fields": [
+      "id_jogo",
+      "nome",
+      "ano_lancamento",
+      "desenvolvedora",
+      "genero"
+    ]
+  },
+  "jogos.Selects.buscarPorNome": {
+    "sql": "SELECT * FROM jogos WHERE LOWER(nome) LIKE LOWER($1)",
+    "fields": [
+      "id_jogo",
+      "nome",
+      "ano_lancamento",
+      "desenvolvedora",
+      "genero"
+    ]
+  },
+  "jogos.Joins.jogadoresComJogos": {
+    "sql": "SELECT j.id_jogo, j.nome, j.genero, jg.id_jogador, jg.nickname FROM jogos j INNER JOIN jogadores jg ON j.id_jogo = jg.fk_jogo",
+    "fields": [
+      "id_jogo",
+      "nome",
+      "genero",
+      "id_jogador",
+      "nickname"
+    ]
+  },
+  "jogos.Agregacoes.contarTotal": {
+    "sql": "SELECT COUNT(*) AS total_jogo FROM jogos",
+    "fields": [
+      1
+    ]
+  },
+  "jogos.Agregacoes.agruparPorGenero": {
+    "sql": "SELECT genero, COUNT(*) AS total FROM jogos GROUP BY genero",
+    "fields": [
+      "genero",
+      "total"
+    ]
+  },
+  "jogos.Agregacoes.agruparPorAno": {
+    "sql": "SELECT ano_lancamento, COUNT(*) AS total FROM jogos GROUP BY ano_lancamento",
+    "fields": [
+      "ano_lancamento",
+      "total"
+    ]
+  },
+  "jogos.Agregacoes.agruparPorDesenvolvedora": {
+    "sql": "SELECT desenvolvedora, COUNT(*) AS total FROM jogos GROUP BY desenvolvedora",
+    "fields": [
+      "desenvolvedora",
+      "total"
+    ]
+  },
+  "jogos.Agregacoes.jogosMaisAvaliados": {
+    "sql": "SELECT j.nome, COUNT(a.id_avaliacao) AS total_avaliacoes, AVG(a.nota) AS media_notas FROM jogos j LEFT JOIN avaliacoes a ON j.id_jogo = a.fk_jogo GROUP BY j.id_jogo, j.nome ORDER BY total_avaliacoes DESC",
+    "fields": [
+      "nome",
+      "total_avaliacoes",
+      "media_notas"
+    ]
+  },
+  "jogadores.Selects.listarTodos": {
+    "sql": "SELECT * FROM jogadores",
+    "fields": [
+      "id_jogador",
+      "nickname",
+      "email",
+      "fk_jogo"
+    ]
+  },
+  "jogadores.Selects.buscarPorId": {
+    "sql": "SELECT * FROM jogadores WHERE id_jogador = $1",
+    "fields": [
+      "id_jogador",
+      "nickname",
+      "email",
+      "fk_jogo"
+    ]
+  },
+  "jogadores.Selects.buscarPorNickname": {
+    "sql": "SELECT * FROM jogadores WHERE nickname LIKE $1",
+    "fields": [
+      "id_jogador",
+      "nickname",
+      "email",
+      "fk_jogo"
+    ]
+  },
+  "jogadores.Selects.buscarPorNome": {
+    "sql": "SELECT * FROM jogadores WHERE LOWER(nickname) LIKE LOWER($1)",
+    "fields": [
+      "id_jogador",
+      "nickname",
+      "email",
+      "fk_jogo"
+    ]
+  },
+  "jogadores.Agregacoes.contarTotal": {
+    "sql": "SELECT COUNT(*) AS total FROM jogadores",
+    "fields": [
+      1
+    ]
+  },
+  "jogadores.Agregacoes.contarPorJogo": {
+    "sql": "SELECT j.nome as jogo_nome, COUNT(jg.id_jogador) AS total_jogadores FROM jogos j INNER JOIN jogadores jg ON j.id_jogo = jg.fk_jogo GROUP BY j.id_jogo, j.nome",
+    "fields": [
+      "jogo_nome",
+      "total_jogadores"
+    ]
+  },
+  "plataformas.Selects.listarTodas": {
+    "sql": "SELECT * FROM plataformas",
+    "fields": [
+      "id_plataforma",
+      "nome",
+      "horas_jogadas",
+      "ultima_sessao",
+      "fk_jogador"
+    ]
+  },
+  "plataformas.Selects.buscarPorId": {
+    "sql": "SELECT * FROM plataformas WHERE id_plataforma = $1",
+    "fields": [
+      "id_plataforma",
+      "nome",
+      "horas_jogadas",
+      "ultima_sessao",
+      "fk_jogador"
+    ]
+  },
+  "plataformas.Selects.filtrarPorNome": {
+    "sql": "SELECT * FROM plataformas WHERE nome LIKE $1",
+    "fields": [
+      "id_plataforma",
+      "nome",
+      "horas_jogadas",
+      "ultima_sessao",
+      "fk_jogador"
+    ]
+  },
+  "plataformas.Selects.buscarPorNome": {
+    "sql": "SELECT * FROM plataformas WHERE LOWER(nome) LIKE LOWER($1)",
+    "fields": [
+      "id_plataforma",
+      "nome",
+      "horas_jogadas",
+      "ultima_sessao",
+      "fk_jogador"
+    ]
+  },
+  "plataformas.Joins.plataformasComJogadoresJogos": {
+    "sql": "SELECT p.id_plataforma, p.nome AS plataforma_nome, p.horas_jogadas, jg.nickname, j.nome AS jogo_nome, j.genero FROM plataformas p INNER JOIN jogadores jg ON p.fk_jogador = jg.id_jogador INNER JOIN jogos j ON jg.fk_jogo = j.id_jogo",
+    "fields": [
+      "id_plataforma",
+      "plataforma_nome",
+      "horas_jogadas",
+      "nickname",
+      "jogo_nome",
+      "genero"
+    ]
+  },
+  "plataformas.Agregacoes.contarTotal": {
+    "sql": "SELECT COUNT(*) AS total FROM plataformas",
+    "fields": [
+      1
+    ]
+  },
+  "plataformas.Agregacoes.mediaHorasJogadas": {
+    "sql": "SELECT AVG(horas_jogadas) AS media_horas_jogadas FROM plataformas",
+    "fields": [
+      1
+    ]
+  },
+  "plataformas.Agregacoes.totalHorasPorJogador": {
+    "sql": "SELECT jg.id_jogador, jg.nickname, SUM(horas_jogadas) AS total_horas FROM plataformas p INNER JOIN jogadores jg ON p.fk_jogador = jg.id_jogador GROUP BY jg.id_jogador, jg.nickname",
+    "fields": [
+      "nickname",
+      "total_horas"
+    ]
+  },
+  "avaliacoes.Selects.listarTodas": {
+    "sql": "SELECT * FROM avaliacoes",
+    "fields": [
+      "id_avaliacao",
+      "nota",
+      "comentario",
+      "status",
+      "data_avaliacao",
+      "fk_jogador",
+      "fk_jogo"
+    ]
+  },
+  "avaliacoes.Selects.buscarPorId": {
+    "sql": "SELECT * FROM avaliacoes WHERE id_avaliacao = $1",
+    "fields": [
+      "id_avaliacao",
+      "nota",
+      "comentario",
+      "status",
+      "data_avaliacao",
+      "fk_jogador",
+      "fk_jogo"
+    ]
+  },
+  "avaliacoes.Selects.filtrarPorNota": {
+    "sql": "SELECT * FROM avaliacoes WHERE nota = $1",
+    "fields": [
+      "id_avaliacao",
+      "nota",
+      "comentario",
+      "status",
+      "data_avaliacao",
+      "fk_jogador",
+      "fk_jogo"
+    ]
+  },
+  "avaliacoes.Selects.filtrarPorStatus": {
+    "sql": "SELECT * FROM avaliacoes WHERE status = $1",
+    "fields": [
+      "id_avaliacao",
+      "nota",
+      "comentario",
+      "status",
+      "data_avaliacao",
+      "fk_jogador",
+      "fk_jogo"
+    ]
+  },
+  "avaliacoes.Selects.buscarPorNome": {
+    "sql": "SELECT * FROM avaliacoes WHERE LOWER(comentario) LIKE LOWER($1)",
+    "fields": [
+      "id_avaliacao",
+      "nota",
+      "comentario",
+      "status",
+      "data_avaliacao",
+      "fk_jogador",
+      "fk_jogo"
+    ]
+  },
+  "avaliacoes.Joins.avaliacoesComJogadoresJogos": {
+    "sql": "SELECT a.id_avaliacao, a.nota, a.comentario, a.status, jg.nickname, j.nome AS jogo_nome, j.genero FROM avaliacoes a INNER JOIN jogadores jg ON a.fk_jogador = jg.id_jogador INNER JOIN jogos j ON a.fk_jogo = j.id_jogo",
+    "fields": [
+      "id_avaliacao",
+      "nota",
+      "comentario",
+      "status",
+      "nickname",
+      "jogo_nome",
+      "genero"
+    ]
+  },
+  "avaliacoes.Agregacoes.contarTotal": {
+    "sql": "SELECT COUNT(*) AS total FROM avaliacoes",
+    "fields": [
+      1
+    ]
+  },
+  "avaliacoes.Agregacoes.mediaNotasGerais": {
+    "sql": "SELECT AVG(nota) AS media_notas FROM avaliacoes",
+    "fields": [
+      1
+    ]
+  },
+  "avaliacoes.Agregacoes.mediaNotasPorJogo": {
+    "sql": "SELECT j.nome AS jogo_nome, AVG(a.nota) AS media_notas, COUNT(a.id_avaliacao) AS total_avaliacoes FROM avaliacoes a INNER JOIN jogos j ON a.fk_jogo = j.id_jogo GROUP BY j.id_jogo, j.nome ORDER BY media_notas DESC",
+    "fields": [
+      "jogo_nome",
+      "media_notas",
+      "total_avaliacoes"
+    ]
+  },
+  "avaliacoes.Agregacoes.mediaNotasPorJogador": {
+    "sql": "SELECT jg.nickname, AVG(a.nota) AS media_notas, COUNT(a.id_avaliacao) AS total_avaliacoes FROM avaliacoes a INNER JOIN jogadores jg ON a.fk_jogador = jg.id_jogador GROUP BY jg.id_jogador, jg.nickname ORDER BY media_notas DESC",
+    "fields": [
+      "nickname",
+      "media_notas",
+      "total_avaliacoes"
+    ]
+  },
+  "avaliacoes.Agregacoes.distribuicaoNotas": {
+    "sql": "SELECT nota, COUNT(*) AS quantidade FROM avaliacoes GROUP BY nota ORDER BY nota",
+    "fields": [
+      "nota",
+      "quantidade"
+    ]
+  },
+  "avaliacoes.Agregacoes.jogosMaisAvaliados": {
+    "sql": "SELECT j.nome AS jogo_nome, COUNT(a.id_avaliacao) AS total_avaliacoes, AVG(a.nota) AS media_notas FROM jogos j LEFT JOIN avaliacoes a ON j.id_jogo = a.fk_jogo GROUP BY j.id_jogo, j.nome HAVING COUNT(a.id_avaliacao) > 0 ORDER BY total_avaliacoes DESC, media_notas DESC",
+    "fields": [
+      "jogo_nome",
+      "total_avaliacoes",
+      "media_notas"
+    ]
+  },
+  "avaliacoes.Agregacoes.avaliacoesRecentes": {
+    "sql": "SELECT a.id_avaliacao, a.nota, j.nome AS jogo_nome, jg.nickname, a.data_avaliacao FROM avaliacoes a INNER JOIN jogos j ON a.fk_jogo = j.id_jogo INNER JOIN jogadores jg ON a.fk_jogador = jg.id_jogador WHERE a.data_avaliacao >= CURRENT_DATE - ($1 * INTERVAL '1 day') ORDER BY a.data_avaliacao DESC",
+    "fields": [
+      "id_avaliacao",
+      "nota",
+      "jogo_nome",
+      "nickname",
+      "data_avaliacao"
+    ]
+  }
+}

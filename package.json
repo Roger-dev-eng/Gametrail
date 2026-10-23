@@ -1,0 +1,23 @@
+{
+  "name": "jogos-dashboard",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "node scripts/check-deploy.js && wrangler deploy",
+    "check": "wrangler deploy --dry-run",
+    "test": "node --test cloudflare/*.test.js",
+    "generate:queries": "node scripts/generate-queries.js"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
+    "wrangler": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

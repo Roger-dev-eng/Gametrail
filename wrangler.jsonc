@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gametrail",
+  "main": "cloudflare/worker.js",
+  "compatibility_date": "2026-10-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "assets": {
+    "directory": "./frontend",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
+    "not_found_handling": "none"
+  },
+  "hyperdrive": [{
+    "binding": "HYPERDRIVE",
+    "id": "90de62df437a4be6a32867681126d599"
+  }],
+  "observability": { "enabled": true, "head_sampling_rate": 0.1 }
+}
