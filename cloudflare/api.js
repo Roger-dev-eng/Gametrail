@@ -16,7 +16,7 @@ export function integer(value, label = 'ID', min = -2147483648, max = 2147483647
   return validationResult(() => validateInteger(value, label, min, max));
 }
 const resources = {
-  jogos: { id: 'id_jogo', fields: ['nome', 'ano_lancamento', 'desenvolvedora', 'genero'], labels: ['ID', 'Nome', 'Ano', 'Desenvolvedora', 'Genero'] },
+  jogos: { id: 'id_jogo', fields: ['nome', 'ano_lancamento', 'desenvolvedora', 'genero', 'igdb_id', 'capa_url'], labels: ['ID', 'Nome', 'Ano', 'Desenvolvedora', 'Genero'] },
   jogadores: { id: 'id_jogador', fields: ['nickname', 'email', 'fk_jogo'], labels: ['ID', 'Nickname', 'Email', 'Jogo (ID)'] },
   plataformas: { id: 'id_plataforma', fields: ['nome', 'horas_jogadas', 'ultima_sessao', 'fk_jogador'], labels: ['ID', 'Nome', 'Horas', 'Ultima Sessao', 'Jogador (ID)'] },
   avaliacoes: { id: 'id_avaliacao', fields: ['nota', 'comentario', 'status', 'data_avaliacao', 'fk_jogador', 'fk_jogo'], labels: ['ID', 'Nota', 'Comentario', 'Status', 'Data', 'Jogador (ID)', 'Jogo (ID)'] }
@@ -104,7 +104,7 @@ export async function dashboard(db) {
   return result;
 }
 
-export async function api(request, db) {
+export async function api(request, db, catalog) {
   const url = new URL(request.url);
   const parts = url.pathname.slice(5).split('/');
   const [name, rawId] = parts;
@@ -132,6 +132,13 @@ export async function api(request, db) {
     let input;
     try { input = await request.json(); } catch { fail('JSON inválido.'); }
     const data = validateData(name, input);
+    if (name === 'jogos' && data.igdb_id !== null) {
+      if (!catalog) throw new HttpError(503, 'O catálogo ainda não está configurado.');
+      const official = await catalog.getGame(data.igdb_id);
+      data.capa_url = official.capa_url;
+      const duplicate = await db.query('SELECT id_jogo FROM jogos WHERE igdb_id=$1 AND ($2::integer IS NULL OR id_jogo<>$2)', [data.igdb_id, id]);
+      if (duplicate.rows.length) throw new HttpError(409, 'Este jogo do IGDB já está cadastrado.');
+    }
     const values = resource.fields.map(field => data[field]);
     const updating = request.method === 'PUT';
     // A procedure e a atualização são atômicas e usam a mesma conexão.
