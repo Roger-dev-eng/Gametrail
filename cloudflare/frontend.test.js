@@ -9,11 +9,15 @@ function screen() {
   const nodes = new Map();
   const calls = [];
   let result = [{ ID: 7, Nome: 'Portal' }];
+  let catalog = [];
+  let timerId = 0;
+  const timers = new Map();
   class Element {
     value = '';
     style = {};
     dataset = {};
     classList = { add() {}, remove() {} };
+    insertAdjacentHTML(position, html) { nodes.get('#content').html += html; }
     set innerHTML(value) {
       this.html = value;
       if (this === nodes.get('#content')) {
@@ -27,9 +31,9 @@ function screen() {
       if (this === nodes.get('#query-choice')) this.value = value.match(/<option>(.*?)<\/option>/)?.[1] ?? '';
     }
     querySelectorAll(selector) {
-      return [...(this.html ?? '').matchAll(/class="(edit|del)" data-row="(\d+)"/g)]
+      return [...(this.html ?? '').matchAll(/class="(edit|del|select-game)" data-(row|game)="(\d+)"/g)]
         .filter(match => `.${match[1]}` === selector)
-        .map(match => ({ dataset: { row: match[2] } }));
+        .map(match => ({ dataset: { [match[2]]: match[3] } }));
     }
   }
   const content = new Element();
@@ -48,17 +52,19 @@ function screen() {
   };
   const context = {
     fieldRules, validateRecord,
-    document, localStorage: { getItem: () => null }, console, setTimeout: () => {}, confirm: () => true,
+    document, localStorage: { getItem: () => null }, console,
+    setTimeout: callback => { timers.set(++timerId, callback); return timerId; },
+    clearTimeout: id => timers.delete(id), confirm: () => true,
     FormData: class { constructor(form) { return Object.entries(form.values); } },
     fetch: async (url, options = {}) => {
       calls.push({ url, options });
-      const data = url.startsWith('/api/consultas?') ? result : options.method ? { ok: true } : { id_jogo: 7, nome: 'Portal', ano_lancamento: 2007, desenvolvedora: 'Valve', genero: 'Puzzle' };
+      const data = url.startsWith('/api/catalogo/') ? await (typeof catalog === 'function' ? catalog() : catalog) : url.startsWith('/api/consultas?') ? result : options.method ? { ok: true } : { id_jogo: 7, nome: 'Portal', ano_lancamento: 2007, desenvolvedora: 'Valve', genero: 'Puzzle' };
       return { ok: true, status: 200, text: async () => JSON.stringify(data) };
     }
   };
   const script = readFileSync('frontend/app.js', 'utf8').replace(/^import .* from '\.\/validation\.js';\s*/, '');
   runInNewContext(script + '\nglobalThis.openQueries = renderQueries; globalThis.openForm = renderForm;', context);
-  return { nodes, calls, context, content, setResult: value => { result = value; } };
+  return { nodes, calls, context, content, setResult: value => { result = value; }, setCatalog: value => { catalog = value; }, async runTimers() { const pending = [...timers.values()]; timers.clear(); for (const callback of pending) await callback(); } };
 }
 
 test('edição em consulta carrega registro completo e restaura os filtros ao salvar', async () => {
@@ -99,7 +105,7 @@ test('edição nas consultas bloqueia valores inválidos antes de chamar a API',
   await ui.nodes.get('#query-result')['.edit'][0].onclick();
   const form = ui.nodes.get('#record');
   const before = ui.calls.length;
-  for (const invalid of [{ nome: '   ' }, { ano_lancamento: '-1' }, { ano_lancamento: '2.5' }, { nome: 'a'.repeat(101) }]) {
+  for (const invalid of [{ nome: '   ' }, { ano_lancamento: '-1' }, { ano_lancamento: '0' }, { ano_lancamento: '2.5' }, { nome: 'a'.repeat(101) }]) {
     form.values = { nome: 'Portal', ano_lancamento: '2007', desenvolvedora: 'Valve', genero: 'Puzzle', ...invalid };
     await form.onsubmit({ preventDefault() {}, target: form });
     assert.equal(ui.calls.length, before);
@@ -132,4 +138,65 @@ test('formulários compartilham limites e comentário opcional', async () => {
   await playerForm.onsubmit({ preventDefault() {}, target: playerForm });
   assert.equal(ui.calls.length, 1);
   assert.match(ui.nodes.get('#toast').textContent, /E-mail/);
+});
+
+test('cadastro pesquisa com pausa, exibe capa e só salva o jogo após confirmação', async () => {
+  const ui = screen();
+  const selected = { igdb_id: 1942, nome: 'The Witcher 3', ano_lancamento: 2015, desenvolvedora: 'CD Projekt RED', genero: 'RPG', capa_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co1wyy.jpg' };
+  ui.setCatalog([selected]);
+  ui.context.openForm('jogos', {}, async () => {});
+  const input = ui.nodes.get('#game-search');
+  input.value = 'Wi'; input.oninput();
+  await ui.runTimers();
+  assert.equal(ui.calls.length, 0);
+  input.value = 'Wit'; input.oninput();
+  input.value = 'Witcher'; input.oninput();
+  assert.equal(ui.calls.length, 0);
+  await ui.runTimers();
+  assert.equal(ui.calls.length, 1);
+  assert.match(ui.calls[0].url, /q=Witcher/);
+  const output = ui.nodes.get('#game-search-results');
+  assert.match(output.html, /co1wyy.jpg/);
+  output['.select-game'][0].onclick();
+  assert.match(ui.content.html, /PRÉVIA DO CADASTRO/);
+  assert.match(ui.content.html, /value="CD Projekt RED"/);
+  assert.equal(ui.calls.length, 1);
+  const form = ui.nodes.get('#record');
+  form.values = { nome: selected.nome, ano_lancamento: '2015', desenvolvedora: selected.desenvolvedora, genero: 'RPG' };
+  await form.onsubmit({ preventDefault() {}, target: form });
+  assert.equal(ui.calls.at(-1).options.method, 'POST');
+  assert.equal(JSON.parse(ui.calls.at(-1).options.body).igdb_id, 1942);
+});
+
+test('cadastro manual permanece disponível e dados ausentes exigem preenchimento', async () => {
+  const ui = screen();
+  ui.setCatalog([{ igdb_id: 2, nome: 'Sem detalhes', ano_lancamento: null, desenvolvedora: '', genero: '', capa_url: null }]);
+  ui.context.openForm('jogos', {}, async () => {});
+  ui.nodes.get('#game-search').value = 'Sem detalhes';
+  await ui.nodes.get('#catalog-search-form').onsubmit({ preventDefault() {} });
+  assert.match(ui.nodes.get('#game-search-results').html, /Sem capa/);
+  ui.nodes.get('#game-search-results')['.select-game'][0].onclick();
+  const form = ui.nodes.get('#record');
+  form.values = { nome: 'Sem detalhes', ano_lancamento: '', desenvolvedora: '', genero: '' };
+  await form.onsubmit({ preventDefault() {}, target: form });
+  assert.equal(ui.calls.length, 1);
+  assert.match(ui.nodes.get('#toast').textContent, /obrigatório/);
+  ui.nodes.get('#back').onclick();
+  ui.nodes.get('#manual-game').onclick();
+  assert.match(ui.content.html, /id="record"/);
+  assert.doesNotMatch(ui.content.html, /PRÉVIA DO CADASTRO/);
+});
+
+test('resposta de busca atrasada não sobrescreve a navegação para cadastro manual', async () => {
+  const ui = screen();
+  let release;
+  ui.setCatalog(() => new Promise(resolve => { release = resolve; }));
+  ui.context.openForm('jogos', {});
+  ui.nodes.get('#game-search').value = 'Portal';
+  const pending = ui.nodes.get('#catalog-search-form').onsubmit({ preventDefault() {} });
+  ui.nodes.get('#manual-game').onclick();
+  release([{ igdb_id: 1, nome: 'Portal' }]);
+  await pending;
+  assert.match(ui.content.html, /id="record"/);
+  assert.doesNotMatch(ui.content.html, /game-search-grid/);
 });

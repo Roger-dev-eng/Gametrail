@@ -1,12 +1,12 @@
 import { fieldRules, validateRecord } from './validation.js';
 
 const schemas = {
-  jogos: { title: "Jogos", singular: "Jogo", article: "Novo", id: "id_jogo", columns: ["id_jogo", "nome", "ano_lancamento", "desenvolvedora", "genero"], fields: [["nome", "Nome", "text"], ["ano_lancamento", "Ano", "number"], ["desenvolvedora", "Desenvolvedora", "text"], ["genero", "Gênero", "text"]] },
+  jogos: { title: "Jogos", singular: "Jogo", article: "Novo", id: "id_jogo", columns: ["id_jogo", "capa_url", "nome", "ano_lancamento", "desenvolvedora", "genero"], fields: [["nome", "Nome", "text"], ["ano_lancamento", "Ano", "number"], ["desenvolvedora", "Desenvolvedora", "text"], ["genero", "Gênero", "text"]] },
   jogadores: { title: "Jogadores", singular: "Jogador", article: "Novo", id: "id_jogador", columns: ["id_jogador", "nickname", "email", "fk_jogo"], fields: [["nickname", "Nickname", "text"], ["email", "E-mail", "email"], ["fk_jogo", "Jogo associado", "number"]] },
   plataformas: { title: "Plataformas", singular: "Plataforma", article: "Nova", id: "id_plataforma", columns: ["id_plataforma", "nome", "horas_jogadas", "ultima_sessao", "fk_jogador"], fields: [["nome", "Nome", "text"], ["horas_jogadas", "Horas jogadas", "number"], ["fk_jogador", "Jogador associado", "number"]] },
   avaliacoes: { title: "Avaliações", singular: "Avaliação", article: "Nova", id: "id_avaliacao", columns: ["id_avaliacao", "nota", "comentario", "status", "data_avaliacao", "fk_jogador", "fk_jogo"], fields: [["nota", "Nota", "number"], ["comentario", "Comentário", "text"], ["status", "Status", "text"], ["data_avaliacao", "Data", "date"], ["fk_jogador", "Jogador", "number"], ["fk_jogo", "Jogo", "number"]] }
 };
-const labels = { id_jogo: "ID", id_jogador: "ID", id_plataforma: "ID", id_avaliacao: "ID", nome: "Nome", nickname: "Nickname", email: "E-mail", ano_lancamento: "Ano", desenvolvedora: "Desenvolvedora", genero: "Gênero", horas_jogadas: "Horas", ultima_sessao: "Última sessão", fk_jogo: "Jogo", fk_jogador: "Jogador", nota: "Nota", comentario: "Comentário", status: "Status", data_avaliacao: "Data" };
+const labels = { capa_url: "Capa", id_jogo: "ID", id_jogador: "ID", id_plataforma: "ID", id_avaliacao: "ID", nome: "Nome", nickname: "Nickname", email: "E-mail", ano_lancamento: "Ano", desenvolvedora: "Desenvolvedora", genero: "Gênero", horas_jogadas: "Horas", ultima_sessao: "Última sessão", fk_jogo: "Jogo", fk_jogador: "Jogador", nota: "Nota", comentario: "Comentário", status: "Status", data_avaliacao: "Data" };
 const element = (selector) => document.querySelector(selector);
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
 const resourceCache = new Map();
@@ -96,7 +96,7 @@ async function renderResource(resource, navigationId = ++navigationSequence) {
     function renderTablePage() {
       const start = (currentPage - 1) * pageSize;
       const visibleRows = rows.slice(start, start + pageSize);
-      const tableRows = visibleRows.map((row) => `<tr>${schema.columns.map((column) => `<td>${escapeHtml(row[column])}</td>`).join("")}<td><button class="edit" data-id="${row[schema.id]}">Editar</button><button class="del" data-id="${row[schema.id]}">Excluir</button></td></tr>`).join("") || `<tr><td colspan="${schema.columns.length + 1}">Nenhum registro.</td></tr>`;
+      const tableRows = visibleRows.map((row) => `<tr>${schema.columns.map((column) => `<td>${column === "capa_url" ? gameCover(row) : escapeHtml(row[column])}</td>`).join("")}<td><button class="edit" data-id="${row[schema.id]}">Editar</button><button class="del" data-id="${row[schema.id]}">Excluir</button></td></tr>`).join("") || `<tr><td colspan="${schema.columns.length + 1}">Nenhum registro.</td></tr>`;
       element("#records-table-body").innerHTML = tableRows;
       element("#page-info").textContent = `Página ${currentPage} de ${totalPages} · ${rows.length} registro(s)`;
       element("#previous-page").disabled = currentPage === 1;
@@ -113,7 +113,62 @@ async function renderResource(resource, navigationId = ++navigationSequence) {
   } catch (error) { if (navigationId === navigationSequence) renderError(error); }
 }
 
-function renderForm(resource, row, onReturn) {
+function gameCover(game) {
+  const url = game.capa_url;
+  return typeof url === "string" && /^https:\/\/images\.igdb\.com\/igdb\/image\/upload\/t_cover_big\/[a-zA-Z0-9_-]+\.jpg$/.test(url)
+    ? `<img class="game-cover" src="${escapeHtml(url)}" alt="Capa de ${escapeHtml(game.nome)}" loading="lazy" referrerpolicy="no-referrer">`
+    : '<span class="game-cover game-cover-empty">Sem capa</span>';
+}
+
+function renderGameSearch(onReturn, previousTerm = "") {
+  const navigationId = navigationSequence;
+  element("#content").innerHTML = `<header class="row"><div><span class="eyebrow">CATÁLOGO DE JOGOS</span><h1>Novo jogo</h1><p>Pesquise, escolha a versão e revise os dados antes de cadastrar.</p></div><button class="back" id="catalog-back">← Voltar</button></header><section class="game-search-panel"><form id="catalog-search-form"><label for="game-search">Nome do jogo</label><div class="game-search-input"><input id="game-search" type="search" minlength="3" maxlength="120" placeholder="Ex.: God of War" autocomplete="off" value="${escapeHtml(previousTerm)}"><button type="submit">Pesquisar</button></div></form><button id="manual-game" class="back">Cadastrar manualmente</button><p class="catalog-credit">Dados e capas fornecidos pelo <a href="https://www.igdb.com" target="_blank" rel="noopener noreferrer">IGDB</a>.</p></section><div id="game-search-results" aria-live="polite"><p>Digite pelo menos 3 caracteres para pesquisar.</p></div>`;
+  const input = element("#game-search");
+  const output = element("#game-search-results");
+  let sequence = 0;
+  let timer;
+  const current = id => id === sequence && navigationId === navigationSequence && element("#game-search") === input;
+  element("#catalog-back").onclick = () => onReturn ? onReturn() : navigate("home");
+  element("#manual-game").onclick = () => {
+    sequence++;
+    clearTimeout(timer);
+    renderForm("jogos", {}, onReturn, true);
+    element("#back").onclick = () => renderGameSearch(onReturn, input.value);
+  };
+  async function search(id) {
+    const term = input.value.trim();
+    if (term.length < 3) { output.innerHTML = '<p>Digite pelo menos 3 caracteres para pesquisar.</p>'; return; }
+    if (term.length > 120) { output.innerHTML = '<p>Use no máximo 120 caracteres na pesquisa.</p>'; return; }
+    output.innerHTML = '<p>Buscando jogos...</p>';
+    try {
+      const games = await api(`catalogo/jogos?q=${encodeURIComponent(term)}`);
+      if (!current(id)) return;
+      output.innerHTML = games.length ? `<div class="game-search-grid">${games.map((game, index) => `<article class="game-card">${gameCover(game)}<div><h2>${escapeHtml(game.nome)}</h2><p>${escapeHtml(game.ano_lancamento || "Ano não informado")}</p><p>${escapeHtml(game.desenvolvedora || "Desenvolvedora não informada")}</p><button class="select-game" data-game="${index}">Selecionar jogo</button></div></article>`).join("")}</div>` : '<p>Nenhum jogo encontrado. Tente outro nome ou use o cadastro manual.</p>';
+      output.querySelectorAll(".select-game").forEach(button => {
+        button.onclick = () => {
+          if (!current(id)) return;
+          sequence++;
+          const game = games[Number(button.dataset.game)];
+          renderForm("jogos", game, onReturn);
+          element("#back").onclick = () => renderGameSearch(onReturn, term);
+        };
+      });
+    } catch (error) {
+      if (current(id)) output.innerHTML = `<div class="error"><h2>Não foi possível buscar os jogos</h2><p>${escapeHtml(error.message)}</p><p>Você pode tentar novamente ou cadastrar manualmente.</p></div>`;
+    }
+  }
+  input.oninput = () => {
+    clearTimeout(timer);
+    const id = ++sequence;
+    output.innerHTML = input.value.trim().length < 3 ? '<p>Digite pelo menos 3 caracteres para pesquisar.</p>' : '<p>Aguardando a pesquisa...</p>';
+    if (input.value.trim().length >= 3) timer = setTimeout(() => search(id), 400);
+  };
+  element("#catalog-search-form").onsubmit = async event => { event.preventDefault(); clearTimeout(timer); await search(++sequence); };
+  if (previousTerm.length >= 3) input.oninput();
+}
+
+function renderForm(resource, row, onReturn, manual = false) {
+  if (resource === "jogos" && !row.id_jogo && !row.igdb_id && !manual) return renderGameSearch(onReturn);
   const schema = schemas[resource];
   const fields = schema.fields.map(([name, label, type]) => {
     const rule = fieldRules[resource][name];
@@ -122,11 +177,14 @@ function renderForm(resource, row, onReturn) {
   }).join("");
   const heading = row[schema.id] ? `Editar ${schema.singular}` : `${schema.article} ${schema.singular}`;
   element("#content").innerHTML = `<header class="row"><div><span class="eyebrow">${row[schema.id] ? "EDITAR" : "NOVO"} REGISTRO</span><h1>${heading}</h1></div><button class="back" id="back">← Voltar</button></header><form id="record" class="form" novalidate>${fields}<button type="submit">Salvar registro →</button></form>`;
+  if (resource === "jogos" && row.igdb_id) {
+    element("#record").insertAdjacentHTML("beforebegin", `<section class="game-preview">${gameCover(row)}<div><span class="eyebrow">PRÉVIA DO CADASTRO · IGDB</span><h2>${escapeHtml(row.nome)}</h2><p>Revise os dados e complete as informações que estiverem faltando. O cadastro só será realizado ao salvar.</p></div></section>`);
+  }
   element("#back").onclick = () => onReturn ? onReturn() : navigate("home");
   element("#record").onsubmit = async (event) => {
     event.preventDefault();
     try {
-      const payload = validateRecord(resource, Object.fromEntries(new FormData(event.target)));
+      const payload = validateRecord(resource, { ...Object.fromEntries(new FormData(event.target)), ...(resource === "jogos" ? { igdb_id: row.igdb_id, capa_url: row.capa_url } : {}) });
       await api(row[schema.id] ? `${resource}/${row[schema.id]}` : resource, { method: row[schema.id] ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       resourceCache.delete(resource);
       showToast("Registro salvo.");

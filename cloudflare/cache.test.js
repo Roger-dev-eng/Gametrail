@@ -66,7 +66,7 @@ test('Redis integrado ao PostgreSQL: cache, invalidação e recuperação', asyn
   const revision = async () => (await db.query('SELECT revision::text AS revision FROM app_cache_revision WHERE id=1')).rows[0].revision;
   const jogo = { nome: 'Portal', ano_lancamento: 2007, desenvolvedora: 'Valve', genero: 'Puzzle' };
   try {
-    for (const file of ['ddl/01_schema.sql', 'ddl/02_cache.sql', 'views/01_view_resumo_jogos.sql', 'functions/01_function_media_jogo.sql', 'procedure/01_procedure_atualizar_status_avaliacao.sql']) await postgres.exec(readFileSync(`database/${file}`, 'utf8'));
+    for (const file of ['ddl/01_schema.sql', 'ddl/03_igdb.sql', 'ddl/02_cache.sql', 'views/01_view_resumo_jogos.sql', 'functions/01_function_media_jogo.sql', 'procedure/01_procedure_atualizar_status_avaliacao.sql']) await postgres.exec(readFileSync(`database/${file}`, 'utf8'));
 
     await t.test('dashboard reutiliza JSON, sem repetir as nove consultas', async () => {
       assert.equal((await run('dashboard')).headers.get('X-Cache'), 'MISS');
@@ -101,7 +101,7 @@ test('Redis integrado ao PostgreSQL: cache, invalidação e recuperação', asyn
     });
     await t.test('alterações nas quatro tabelas e na procedure invalidam a versão', async () => {
       const statements = [
-        "INSERT INTO jogos VALUES (9, 'Jogo', 2020, 'Dev', 'RPG')",
+        "INSERT INTO jogos (id_jogo, nome, ano_lancamento, desenvolvedora, genero) VALUES (9, 'Jogo', 2020, 'Dev', 'RPG')",
         "INSERT INTO jogadores VALUES (9, 'Ana', 'ana@test.com', 9)",
         "INSERT INTO plataformas VALUES (9, 'PC', 2, NULL, 9)",
         "INSERT INTO avaliacoes VALUES (9, 8, '', 'Pendente', CURRENT_DATE, 9, 9)",

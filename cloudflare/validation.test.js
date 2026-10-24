@@ -12,7 +12,7 @@ const records = {
 
 test('cadastro e edição de cada entidade usam as mesmas regras no navegador e na API', async t => {
   const invalid = {
-    jogos: [{ nome: '  ' }, { nome: 'a'.repeat(101) }, { ano_lancamento: '-1' }, { ano_lancamento: '1.5' }, { ano_lancamento: '2147483648' }, { desenvolvedora: '' }, { genero: 'g'.repeat(51) }],
+    jogos: [{ nome: '  ' }, { nome: 'a'.repeat(101) }, { ano_lancamento: '-1' }, { ano_lancamento: '0' }, { ano_lancamento: 0 }, { ano_lancamento: '1.5' }, { ano_lancamento: '2147483648' }, { desenvolvedora: '' }, { genero: 'g'.repeat(51) }],
     jogadores: [{ nickname: 'n'.repeat(51) }, { email: 'sem-arroba' }, { email: 'ana @example.com' }, { email: 'a'.repeat(101) }, { fk_jogo: '0' }],
     plataformas: [{ nome: '' }, { horas_jogadas: '-1' }, { horas_jogadas: '1.5' }, { fk_jogador: '0' }],
     avaliacoes: [{ nota: '11' }, { nota: '-1' }, { nota: '1.2' }, { comentario: {} }, { status: 'a'.repeat(21) }, { data_avaliacao: '2026-02-29' }, { data_avaliacao: '0000-01-01' }, { fk_jogo: '' }]
@@ -35,4 +35,5 @@ test('cadastro e edição de cada entidade usam as mesmas regras no navegador e 
   }
   assert.equal(validateData('avaliacoes', records.avaliacoes).comentario, null);
   assert.equal(validateData('jogos', { ...records.jogos, nome: '  Portal  ' }).nome, 'Portal');
+  assert.equal(validateData('jogos', { ...records.jogos, ano_lancamento: '1' }).ano_lancamento, 1);
 });

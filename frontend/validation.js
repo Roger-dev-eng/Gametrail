@@ -6,7 +6,7 @@ const textRule = (label, maxLength, required = true) => ({ label, maxLength, req
 const intRule = (label, min = 0, max = 2147483647) => ({ label, min, max, required: true, type: 'integer' });
 export const fieldRules = {
   jogos: {
-    nome: textRule('Nome', 100), ano_lancamento: intRule('Ano'),
+    nome: textRule('Nome', 100), ano_lancamento: intRule('Ano', 1),
     desenvolvedora: textRule('Desenvolvedora', 100), genero: textRule('Gênero', 50)
   },
   jogadores: {
@@ -53,5 +53,11 @@ export function validateRecord(resource, input) {
     result[field] = normalized;
   }
   if (resource === 'plataformas') result.ultima_sessao = null;
+  if (resource === 'jogos') {
+    result.igdb_id = input.igdb_id == null || input.igdb_id === '' ? null : validateInteger(input.igdb_id, 'ID do catálogo', 1, 2147483647, 'igdb_id');
+    const cover = input.capa_url;
+    if (cover != null && cover !== '' && (typeof cover !== 'string' || !/^https:\/\/images\.igdb\.com\/igdb\/image\/upload\/t_cover_big\/[a-zA-Z0-9_-]+\.jpg$/.test(cover))) throw new ValidationError('Capa do jogo inválida.', 'capa_url');
+    result.capa_url = cover || null;
+  }
   return result;
 }

@@ -14,7 +14,7 @@ test('API Cloudflare com PostgreSQL: CRUD, todas as consultas e dashboard', asyn
     method, ...(data === undefined ? {} : { body: JSON.stringify(data), headers: { 'Content-Type': 'application/json' } })
   }), db);
   try {
-    for (const file of ['ddl/01_schema.sql', 'views/01_view_resumo_jogos.sql', 'functions/01_function_media_jogo.sql', 'procedure/01_procedure_atualizar_status_avaliacao.sql']) {
+    for (const file of ['ddl/01_schema.sql', 'ddl/03_igdb.sql', 'views/01_view_resumo_jogos.sql', 'functions/01_function_media_jogo.sql', 'procedure/01_procedure_atualizar_status_avaliacao.sql']) {
       await postgres.exec(readFileSync(`database/${file}`, 'utf8'));
     }
     const records = {
