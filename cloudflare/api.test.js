@@ -33,6 +33,14 @@ test('API Cloudflare com PostgreSQL: CRUD, todas as consultas e dashboard', asyn
       assert.equal((await (await request('avaliacoes')).json())[0].status, 'Aprovada');
     });
     // Opções reais oferecidas pelo frontend: garante a compatibilidade do contrato.
+    await t.test('busca por ID retorna o registro completo para editar uma consulta', async () => {
+      for (const [name, data] of Object.entries(records)) {
+        const row = await (await request(`${name}/1`)).json();
+        for (const key of Object.keys(data)) assert.ok(Object.hasOwn(row, key));
+      }
+      await assert.rejects(request('jogos/999'), { status: 404 });
+      await assert.rejects(request('jogos/abc'), { status: 400 });
+    });
     const optionsSource = readFileSync('frontend/app.js', 'utf8').match(/const options = (\{[\s\S]*?\n  \});/)[1];
     const options = Function(`return (${optionsSource})`)();
     for (const [table, modes] of Object.entries(options)) {

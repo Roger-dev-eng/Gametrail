@@ -10,6 +10,7 @@
     "test": "node --test cloudflare/*.test.js"
   },
   "dependencies": {
+    "@redis/client": "^6.3.0",
     "pg": "^8.16.3"
   },
   "devDependencies": {

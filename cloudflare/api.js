@@ -1,18 +1,19 @@
+import { validateRecord, validateInteger, ValidationError } from '../frontend/validation.js';
 import queries from './queries.json' with { type: 'json' };
 
 export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
 const fail = message => { throw new HttpError(400, message); };
-export function integer(value, label = 'ID', min = -2147483648, max = 2147483647) {
-  if (!/^-?\d+$/.test(String(value ?? '').trim())) fail(`${label}: informe um número inteiro.`);
-  const number = Number(value);
-  if (!Number.isInteger(number) || number < min || number > max) fail(`${label}: valor fora da faixa permitida.`);
-  return number;
+function validationResult(operation) {
+  try { return operation(); }
+  catch (error) {
+    if (error instanceof ValidationError) throw new HttpError(400, error.message);
+    throw error;
+  }
 }
-function text(value, label) {
-  if (typeof value !== 'string' || !value.trim()) fail(`${label}: campo obrigatório.`);
-  return value.trim();
+export function integer(value, label = 'ID', min = -2147483648, max = 2147483647) {
+  return validationResult(() => validateInteger(value, label, min, max));
 }
 const resources = {
   jogos: { id: 'id_jogo', fields: ['nome', 'ano_lancamento', 'desenvolvedora', 'genero'], labels: ['ID', 'Nome', 'Ano', 'Desenvolvedora', 'Genero'] },
@@ -23,21 +24,7 @@ const resources = {
 const getResource = name => Object.hasOwn(resources, name) ? resources[name] : null;
 
 export function validateData(name, input) {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) fail('Informe um objeto JSON.');
-  const data = {};
-  for (const field of resources[name].fields) {
-    const value = input[field];
-    if (field === 'ultima_sessao') data[field] = null;
-    else if (field === 'comentario') data[field] = value == null ? null : String(value).trim() || null;
-    else if (['ano_lancamento', 'horas_jogadas', 'nota', 'fk_jogo', 'fk_jogador'].includes(field)) {
-      data[field] = integer(value, field, 0, field === 'nota' ? 10 : 2147483647);
-    } else if (field === 'data_avaliacao') {
-      const date = text(value, 'Data');
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date) fail('Data inválida. Use yyyy-MM-dd.');
-      data[field] = date;
-    } else data[field] = text(value, field);
-  }
-  return data;
+  return validationResult(() => validateRecord(name, input));
 }
 
 async function dql(db, key, labels, params = []) {
@@ -131,6 +118,11 @@ export async function api(request, db) {
   if (!resource) throw new HttpError(404, 'Recurso não encontrado.');
   const id = rawId === undefined ? null : integer(rawId, 'ID', 1);
   if (request.method === 'GET' && id === null) return Response.json((await db.query(`SELECT ${resource.id}, ${resource.fields.join(', ')} FROM ${name} ORDER BY ${resource.id}`)).rows);
+  if (request.method === 'GET' && id !== null) {
+    const result = await db.query(`SELECT ${resource.id}, ${resource.fields.join(', ')} FROM ${name} WHERE ${resource.id}=$1`, [id]);
+    if (!result.rows.length) throw new HttpError(404, 'Registro não encontrado.');
+    return Response.json(result.rows[0]);
+  }
   if (request.method === 'DELETE' && id !== null) {
     const result = await db.query(`DELETE FROM ${name} WHERE ${resource.id}=$1`, [id]);
     if (!result.rowCount) throw new HttpError(404, 'Registro não encontrado.');

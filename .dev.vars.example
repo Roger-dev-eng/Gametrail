@@ -1,0 +1,10 @@
+# Copie para .dev.vars e preencha com suas credenciais; não versione .dev.vars.
+CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE="postgresql://usuario:senha@host:5432/postgres?sslmode=require"
+REDIS_HOST="redis-SEU-ENDPOINT.cloud.redislabs.com"
+REDIS_PORT="12345"
+REDIS_USERNAME="default"
+REDIS_PASSWORD="SUA-SENHA-DO-BANCO"
+# Redis Cloud Free usa TCP sem TLS. Use true somente se TLS estiver ativo no banco.
+REDIS_TLS="false"
+# Use um namespace diferente do ambiente de produção.
+CACHE_NAMESPACE="gametrail:local:v1"

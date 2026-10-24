@@ -1,3 +1,5 @@
+import { fieldRules, validateRecord } from './validation.js';
+
 const schemas = {
   jogos: { title: "Jogos", singular: "Jogo", article: "Novo", id: "id_jogo", columns: ["id_jogo", "nome", "ano_lancamento", "desenvolvedora", "genero"], fields: [["nome", "Nome", "text"], ["ano_lancamento", "Ano", "number"], ["desenvolvedora", "Desenvolvedora", "text"], ["genero", "Gênero", "text"]] },
   jogadores: { title: "Jogadores", singular: "Jogador", article: "Novo", id: "id_jogador", columns: ["id_jogador", "nickname", "email", "fk_jogo"], fields: [["nickname", "Nickname", "text"], ["email", "E-mail", "email"], ["fk_jogo", "Jogo associado", "number"]] },
@@ -111,30 +113,35 @@ async function renderResource(resource, navigationId = ++navigationSequence) {
   } catch (error) { if (navigationId === navigationSequence) renderError(error); }
 }
 
-function renderForm(resource, row) {
+function renderForm(resource, row, onReturn) {
   const schema = schemas[resource];
   const fields = schema.fields.map(([name, label, type]) => {
-    const minimum = name === "ano_lancamento" || name === "horas_jogadas" ? 'min="0"' : "";
-    return `<label>${label}<input name="${name}" type="${type}" ${minimum} value="${escapeHtml(row[name])}" required></label>`;
+    const rule = fieldRules[resource][name];
+    const constraints = [rule.required ? 'required' : '', rule.min !== undefined ? `min="${rule.min}" max="${rule.max}" step="1"` : '', rule.maxLength ? `maxlength="${rule.maxLength}"` : ''].filter(Boolean).join(' ');
+    return `<label>${label}<input name="${name}" type="${type}" ${constraints} value="${escapeHtml(row[name])}"></label>`;
   }).join("");
   const heading = row[schema.id] ? `Editar ${schema.singular}` : `${schema.article} ${schema.singular}`;
-  element("#content").innerHTML = `<header class="row"><div><span class="eyebrow">${row[schema.id] ? "EDITAR" : "NOVO"} REGISTRO</span><h1>${heading}</h1></div><button class="back" id="back">← Voltar</button></header><form id="record" class="form">${fields}<button type="submit">Salvar registro →</button></form>`;
-  element("#back").onclick = () => navigate("home");
+  element("#content").innerHTML = `<header class="row"><div><span class="eyebrow">${row[schema.id] ? "EDITAR" : "NOVO"} REGISTRO</span><h1>${heading}</h1></div><button class="back" id="back">← Voltar</button></header><form id="record" class="form" novalidate>${fields}<button type="submit">Salvar registro →</button></form>`;
+  element("#back").onclick = () => onReturn ? onReturn() : navigate("home");
   element("#record").onsubmit = async (event) => {
     event.preventDefault();
-    const payload = Object.fromEntries(new FormData(event.target));
     try {
+      const payload = validateRecord(resource, Object.fromEntries(new FormData(event.target)));
       await api(row[schema.id] ? `${resource}/${row[schema.id]}` : resource, { method: row[schema.id] ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       resourceCache.delete(resource);
       showToast("Registro salvo.");
-      renderResource(resource);
-    } catch (error) { showToast(error.message, true); }
+      if (onReturn) await onReturn();
+      else renderResource(resource);
+    } catch (error) {
+      showToast(error.message, true);
+      if (error.field) event.target.elements?.namedItem(error.field)?.focus();
+    }
   };
 }
 
-async function deleteResource(resource, id) {
+async function deleteResource(resource, id, onReturn) {
   if (!confirm("Excluir este registro?")) return;
-  try { await api(`${resource}/${id}`, { method: "DELETE" }); resourceCache.delete(resource); showToast("Registro excluído."); renderResource(resource); }
+  try { await api(`${resource}/${id}`, { method: "DELETE" }); resourceCache.delete(resource); showToast("Registro excluído."); if (onReturn) await onReturn(); else renderResource(resource); }
   catch (error) { showToast(error.message, true); }
 }
 
@@ -158,7 +165,9 @@ function renderAnalysisTable(rows) {
   return `<div class="analysis-table"><table><thead><tr>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}</tr></thead><tbody>${rows.slice(0, 10).map((row) => `<tr>${columns.map((column) => `<td>${escapeHtml(row[column])}</td>`).join("")}</tr>`).join("") || "<tr><td>Nenhum dado disponível.</td></tr>"}</tbody></table></div>`;
 }
 
-async function renderQueries() {
+async function renderQueries(previousQuery) {
+  const navigationId = navigationSequence;
+  let querySequence = 0;
   const options = {
     Jogos: {
       Simples: ["Listar todos", "Buscar por ID", "Buscar por nome"],
@@ -205,22 +214,57 @@ async function renderQueries() {
   table.onchange = updateChoices;
   mode.onchange = updateChoices;
   choice.onchange = updateParameterVisibility;
+  if (previousQuery) {
+    table.value = previousQuery.table;
+    mode.value = previousQuery.mode;
+  }
   updateChoices();
+  if (previousQuery) {
+    choice.value = previousQuery.choice;
+    element("#query-parameter").value = previousQuery.parameter;
+    updateParameterVisibility();
+  }
   element("#run-query").onclick = async () => {
+    const queryId = ++querySequence;
+    const selection = { table: table.value, mode: mode.value, choice: choice.value, parameter: element("#query-parameter").value };
+    const isCurrent = () => navigationId === navigationSequence && queryId === querySequence && element("#query-table") === table;
     try {
-      const url = `consultas?tabela=${encodeURIComponent(table.value)}&modo=${encodeURIComponent(mode.value)}&consulta=${encodeURIComponent(choice.value)}&parametro=${encodeURIComponent(element("#query-parameter").value)}`;
+      const url = `consultas?tabela=${encodeURIComponent(selection.table)}&modo=${encodeURIComponent(selection.mode)}&consulta=${encodeURIComponent(selection.choice)}&parametro=${encodeURIComponent(selection.parameter)}`;
       const rows = await api(url);
-      const parameter = element("#query-parameter").value.trim();
+      if (!isCurrent()) return;
+      const parameter = selection.parameter.trim();
       if (!rows.length && parameter) {
-        element("#query-result").innerHTML = `<div class="error"><h2>Nenhum resultado encontrado</h2><p>Não encontramos resultados para o parâmetro "${escapeHtml(parameter)}" na consulta "${escapeHtml(choice.value)}" da tabela "${escapeHtml(table.value)}". Confira o valor informado e tente novamente.</p></div>`;
+        element("#query-result").innerHTML = `<div class="error"><h2>Nenhum resultado encontrado</h2><p>Não encontramos resultados para o parâmetro "${escapeHtml(parameter)}" na consulta "${escapeHtml(selection.choice)}" da tabela "${escapeHtml(selection.table)}". Confira o valor informado e tente novamente.</p></div>`;
         return;
       }
       const columns = rows.length ? Object.keys(rows[0]) : [];
-      element("#query-result").innerHTML = `<div class="query-result-heading"><span>Resultado · ${rows.length} linha(s)</span></div><div class="table"><table><thead><tr>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${columns.map((column) => `<td>${escapeHtml(row[column])}</td>`).join("")}</tr>`).join("") || `<tr><td>Nenhum resultado encontrado.</td></tr>`}</tbody></table></div>`;
+      const resource = selection.table.toLowerCase();
+      const actionable = ["Simples", "Filtros", "Joins"].includes(selection.mode) || resource === "avaliacoes" && selection.choice === "Avaliacoes recentes";
+      const idColumn = selection.mode === "Joins" ? ({ jogos: "ID Jogo", plataformas: "ID Plataforma" }[resource] || "ID") : "ID";
+      const restoreQuery = () => renderQueries(selection);
+      element("#query-result").innerHTML = `<div class="query-result-heading"><span>Resultado · ${rows.length} linha(s)</span></div><div class="table"><table><thead><tr>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}${actionable && rows.length ? "<th>AÇÕES</th>" : ""}</tr></thead><tbody>${rows.map((row, index) => `<tr>${columns.map((column) => `<td>${escapeHtml(row[column])}</td>`).join("")}${actionable ? `<td><button class="edit" data-row="${index}">Editar</button><button class="del" data-row="${index}">Excluir</button></td>` : ""}</tr>`).join("") || `<tr><td>Nenhum resultado encontrado.</td></tr>`}</tbody></table></div>`;
+      element("#query-result").querySelectorAll(".edit").forEach((button) => {
+        button.onclick = async () => {
+          button.disabled = true;
+          try {
+            const row = await api(`${resource}/${rows[Number(button.dataset.row)][idColumn]}`);
+            if (isCurrent()) renderForm(resource, row, restoreQuery);
+          } catch (error) { if (isCurrent()) showToast(error.message, true); }
+          finally { button.disabled = false; }
+        };
+      });
+      element("#query-result").querySelectorAll(".del").forEach((button) => {
+        button.onclick = async () => {
+          button.disabled = true;
+          try { await deleteResource(resource, rows[Number(button.dataset.row)][idColumn], async () => { if (isCurrent()) await restoreQuery(); }); }
+          finally { button.disabled = false; }
+        };
+      });
     } catch (error) {
-      element("#query-result").innerHTML = `<div class="error"><h2>Não foi possível executar a consulta</h2><p>${escapeHtml(error.message)}</p></div>`;
+      if (isCurrent()) element("#query-result").innerHTML = `<div class="error"><h2>Não foi possível executar a consulta</h2><p>${escapeHtml(error.message)}</p></div>`;
     }
   };
+  if (previousQuery) await element("#run-query").onclick();
 }
 
 function renderError(error) { element("#content").innerHTML = `<div class="error"><h1>Não foi possível carregar.</h1><p>${escapeHtml(error.message)}</p></div>`; }

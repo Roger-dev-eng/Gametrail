@@ -5,6 +5,7 @@
   "compatibility_date": "2026-10-23",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "vars": { "CACHE_NAMESPACE": "gametrail:production:v1" },
   "assets": {
     "directory": "./frontend",
     "binding": "ASSETS",

@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { api, HttpError } from './api.js';
+import { cachedApi } from './cache.js';
 
 // Preserve DATE/TIMESTAMP como texto, evitando deslocamento de fuso no frontend.
 const types = { getTypeParser: (oid, format) => [1082, 1114, 1184].includes(oid) ? value => value : pg.types.getTypeParser(oid, format) };
@@ -11,7 +12,7 @@ export default {
     const client = new pg.Client({ connectionString: env.HYPERDRIVE.connectionString, types, connectionTimeoutMillis: 10000, query_timeout: 15000 });
     try {
       await client.connect();
-      const response = await api(request, client);
+      const response = await cachedApi(request, client, env, () => api(request, client));
       response.headers.set('Cache-Control', 'no-store');
       return response;
     } catch (error) {
